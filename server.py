@@ -1,22 +1,31 @@
 import asyncio
-import websockets
 import http
+from websockets.asyncio.server import serve
+from websockets.http11 import Response
 
-# This function answers Render's health checks so it turns green
-async def health_check(connection, request):
-    # If Render pings the server normally, give it a clean "200 OK" response
+# 1. This function intercepts Render's HTTP health checks so it turns green
+def health_check(connection, request):
+    # If Render pings the server root, give it a clean "200 OK" HTTP response
     if request.path == "/":
-        return http.HTTPStatus.OK, [("Content-Type", "text/plain")], b"Server is running"
-    return None
+        return Response(
+            status_code=http.HTTPStatus.OK,
+            reason_phrase="OK",
+            headers=[("Content-Type", "text/plain")],
+            body=b"Server is running",
+        )
+    return None  # Let normal WebSocket game connections pass through seamlessly
 
 async def handler(websocket):
-    # Keep your existing game logic here inside your main handler loop!
+    # This is your main game connection handler
     async for message in websocket:
-        pass # (Leave your actual message handling code here)
+        # Put your game messages handling logic here
+        print(f"Received message: {message}")
+        await websocket.send(f"Echo: {message}")
 
 async def main():
-    # We add 'process_request=health_check' inside the server setup
-    async with websockets.serve(handler, "0.0.0.0", 10000, process_request=health_check):
+    # 2. We pass 'process_request=health_check' inside the server setup
+    async with serve(handler, "0.0.0.0", 10000, process_request=health_check):
+        print("Server started successfully on port 10000...")
         await asyncio.Future()  # run forever
 
 if __name__ == "__main__":
